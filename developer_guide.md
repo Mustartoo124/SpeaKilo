@@ -40,6 +40,7 @@ data/  ->  playgrounds/  ->  models/  ->  evaluation/  ->  pipeline/
 | Set up a new device | `infra/device_setup/` |
 | Capture logs, power, benchmarks | `infra/observability/` |
 | Change CI or Docker images | `infra/ci/`, `infra/docker/` |
+| Implement mobile app | `mobile_app` |
 
 ## Adding a feature
 
