@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SpeaKilo TTS lab</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f4f5f7; color: #1d2330; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  section { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  h1 { font-size: 20px; margin: 0; } h2 { font-size: 15px; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  label { display: grid; gap: 4px; font-size: 13px; }
+  input, select, textarea, button { font: inherit; padding: 6px 8px; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 80px; }
+  button { cursor: pointer; } button:disabled { cursor: wait; opacity: .6; }
+  .primary { background: #1f6feb; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; }
+  .note { font-size: 12px; color: #5b6475; } .warn { color: #b42318; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { border-bottom: 1px solid #e3e6eb; padding: 6px; text-align: left; vertical-align: middle; }
+  .metrics { display: flex; flex-wrap: wrap; gap: 20px; } .metric b { display: block; font-size: 20px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  audio { height: 30px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SpeaKilo TTS lab <span class="note">emulated Raspberry Pi 5 (8 GB)</span></h1>
+
+  <section>
+    <h2>Emulated device</h2>
+    <div class="grid">
+      <label>Cores available <input id="cores" type="number" min="1" max="4"></label>
+      <label>Cores busy with ASR/MT <input id="background" type="number" min="0" max="3"></label>
+      <label>CPU slowdown vs this PC <input id="cpu_scale" type="number" min="1" max="10" step="0.5"></label>
+      <label>TTS threads <input id="threads" type="number" min="1" max="4" value="2"></label>
+    </div>
+    <p class="note" id="hostinfo"></p>
+    <p class="note">Core pinning and shared load are real. The slowdown factor is an estimate: timings here show relative behaviour, not Raspberry Pi 5 measurements. Changing any device setting reloads the model.</p>
+  </section>
+
+  <section>
+    <h2>Synthesise</h2>
+    <div class="grid">
+      <label>Model <select id="candidate"></select></label>
+      <label>Language <select id="lang"></select></label>
+      <label>Example <select id="example"></select></label>
+      <label>Speaker ID (blank = default) <input id="sid" type="number" min="0" max="999"></label>
+      <label>Speed <input id="speed" type="number" min="0.5" max="2" step="0.1" value="1"></label>
+      <label id="stepsLabel">Denoising steps <input id="num_steps" type="number" min="1" max="16" value="2"></label>
+    </div>
+    <p class="note" id="modelinfo"></p>
+    <p><label><input id="normalize" type="checkbox" checked> Normalise units and equipment IDs before speaking</label></p>
+    <textarea id="text" maxlength="1000"></textarea>
+    <div class="row">
+      <button class="primary" id="go">Synthesise</button>
+      <button id="download" hidden>Download model</button>
+      <span id="status" class="note"></span>
+    </div>
+  </section>
+
+  <section id="results" hidden>
+    <h2>Result</h2>
+    <div class="metrics" id="metrics"></div>
+    <p class="note">Spoken form: <span id="spoken"></span></p>
+    <div class="row"><button id="playAll">Play all</button></div>
+    <table><thead><tr><th>#</th><th>Chunk</th><th>Ready at</th><th>Audio</th><th>Play</th></tr></thead><tbody id="chunks"></tbody></table>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let info = null;
+
+function fill(select, options) {
+  select.replaceChildren(...options.map(([value, label]) => new Option(label, value)));
+}
+const current = () => info.candidates.find((c) => c.name === $("candidate").value);
+
+function refreshModel() {
+  const cand = current();
+  fill($("lang"), cand.languages.map((l) => [l, l]));
+  $("stepsLabel").hidden = !cand.has_steps;
+  $("download").hidden = cand.downloaded;
+  $("modelinfo").textContent = `${cand.downloaded ? "Downloaded" : "Not downloaded"} - licence: ${cand.licence}`;
+  refreshExamples();
+}
+function refreshExamples() {
+  const list = info.sentences[$("lang").value] || [];
+  fill($("example"), list.map((s, i) => [i, s]));
+  $("text").value = list[0] || "";
+}
+
+async function api(path, body) {
+  const res = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function loadState() {
+  info = await api("/api/state");
+  fill($("candidate"), info.candidates.map((c) => [c.name, c.name]));
+  $("cores").value = info.defaults.cores;
+  $("background").value = info.defaults.background;
+  $("cpu_scale").value = info.defaults.cpu_scale;
+  $("hostinfo").textContent = `This PC: ${info.host.physical_cpus} physical / ${info.host.logical_cpus} logical CPUs.`;
+  refreshModel();
+}
+
+function metric(label, value) {
+  const div = document.createElement("div");
+  div.className = "metric";
+  const b = document.createElement("b"); b.textContent = value;
+  div.append(b, label);
+  return div;
+}
+
+let players = [];
+function playFrom(index) {
+  if (index >= players.length) return;
+  players[index].onended = () => playFrom(index + 1);
+  players[index].play().catch(() => {});
+}
+
+function show(data) {
+  const over = data.rss_mb > data.ram_budget_mb;
+  $("metrics").replaceChildren(
+    metric("time to first audio (ms)", data.ttfa_ms),
+    metric("total synthesis (ms)", data.total_ms),
+    metric("audio length (s)", data.audio_s),
+    metric("real-time factor", data.rtf),
+    metric(`model memory (MB of ${data.ram_budget_mb} budget)`, data.rss_mb),
+    metric("model load (s)", data.load_s),
+  );
+  if (over) $("metrics").append(Object.assign(document.createElement("b"), { className: "warn", textContent: "Over the 8 GB device memory budget" }));
+  $("spoken").textContent = data.spoken;
+  players = [];
+  $("chunks").replaceChildren(...data.chunks.map((chunk, i) => {
+    const audio = new Audio("data:audio/wav;base64," + chunk.wav_b64);
+    audio.controls = true;
+    players.push(audio);
+    const row = document.createElement("tr");
+    [i + 1, chunk.text, chunk.ready_ms + " ms", chunk.audio_s + " s"].forEach((v) => {
+      const td = document.createElement("td"); td.textContent = v; row.append(td);
+    });
+    const cell = document.createElement("td"); cell.append(audio); row.append(cell);
+    return row;
+  }));
+  $("results").hidden = false;
+  playFrom(0);
+}
+
+$("candidate").onchange = refreshModel;
+$("lang").onchange = refreshExamples;
+$("example").onchange = () => { $("text").value = info.sentences[$("lang").value][$("example").value]; };
+$("playAll").onclick = () => { players.forEach((p) => { p.pause(); p.currentTime = 0; }); playFrom(0); };
+
+$("download").onclick = async () => {
+  $("download").disabled = true; $("status").textContent = "Downloading model...";
+  try { await api("/api/download", { candidate: $("candidate").value }); info = await api("/api/state"); refreshModel(); $("status").textContent = "Downloaded."; }
+  catch (e) { $("status").textContent = e.message; $("status").className = "warn"; }
+  $("download").disabled = false;
+};
+
+$("go").onclick = async () => {
+  $("go").disabled = true; $("status").className = "note";
+  $("status").textContent = "Working (the first run loads the model under the emulated limits)...";
+  try {
+    const data = await api("/api/synthesize", {
+      candidate: $("candidate").value, lang: $("lang").value, text: $("text").value,
+      sid: $("sid").value, speed: $("speed").value, num_steps: $("num_steps").value,
+      normalize: $("normalize").checked,
+      device: { cores: $("cores").value, background: $("background").value, cpu_scale: $("cpu_scale").value, threads: $("threads").value },
+    });
+    show(data); $("status").textContent = "Done.";
+  } catch (e) { $("status").textContent = e.message; $("status").className = "warn"; }
+  $("go").disabled = false;
+};
+
+loadState().catch((e) => { $("status").textContent = e.message; });
+</script>
+</body>
+</html>

@@ -1,1 +1,6 @@
-# TODO: pin dependencies for this playground only
+sherpa-onnx
+numpy
+soundfile
+psutil
+jiwer
+pytest

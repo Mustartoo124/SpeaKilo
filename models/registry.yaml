@@ -1,2 +1,27 @@
 # Machine-readable model registry.
-models: []  # TODO: name, path, quantisation, export_status
+models:
+  # TTS candidates; prebuilt sherpa-onnx packages, no local export yet.
+  - name: supertonic3
+    languages: [en, ko, vi]
+    quantisation: int8
+    source: sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2
+    licence: OpenRAIL-M (weights), MIT (code)
+    export_status: prebuilt
+  - name: kokoro_multi_v1_0
+    languages: [en, zh]
+    quantisation: none
+    source: kokoro-multi-lang-v1_0.tar.bz2
+    licence: Apache-2.0
+    export_status: prebuilt
+  - name: melo_zh_en
+    languages: [zh]
+    quantisation: none
+    source: vits-melo-tts-zh_en.tar.bz2
+    licence: MIT
+    export_status: prebuilt
+  - name: aishell3_zh
+    languages: [zh]
+    quantisation: none
+    source: vits-icefall-zh-aishell3.tar.bz2
+    licence: TODO
+    export_status: prebuilt

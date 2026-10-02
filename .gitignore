@@ -6,6 +6,9 @@ evaluation/**/results/*
 !evaluation/**/results/.gitkeep
 data/manifests/*
 !data/manifests/.gitkeep
+playgrounds/**/models/
+playgrounds/**/results/
+.venv/
 build/
 __pycache__/
 *.egg-info/

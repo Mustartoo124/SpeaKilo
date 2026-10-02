@@ -1,0 +1,22 @@
+{
+  "en": [
+    "Stop the line. Do not open the guard.",
+    "Set pressure to 5 bar and check valve M3-205B before restart.",
+    "Temperature is 85 °C, which is above the 70 °C limit."
+  ],
+  "ko": [
+    "라인을 멈추세요. 보호 덮개를 열지 마세요.",
+    "압력을 5 bar로 설정하고 재시작 전에 밸브 M3-205B를 확인하세요.",
+    "온도가 85 °C이며 제한값 70 °C를 초과했습니다."
+  ],
+  "vi": [
+    "Dừng dây chuyền. Không được mở nắp bảo vệ.",
+    "Đặt áp suất 5 bar và kiểm tra van M3-205B trước khi khởi động lại.",
+    "Nhiệt độ là 85 °C, vượt quá giới hạn 70 °C."
+  ],
+  "zh": [
+    "停止生产线。不要打开防护罩。",
+    "将压力设置为5 bar，重启前请检查阀门M3-205B。",
+    "温度为85 °C，超过了70 °C的限制。"
+  ]
+}

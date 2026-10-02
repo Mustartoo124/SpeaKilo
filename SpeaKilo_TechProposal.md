@@ -12,9 +12,9 @@
 
 ## 1. Executive Summary
 
-SpeaKilo is an offline, low-latency Edge-AI speech translation system designed for frontline industrial communication. The proposed product combines a Qualcomm Raspberry Pi 5 pocket compute unit, wireless earbud capture/playback, and a companion HUD. At runtime, audio remains on the device and flows through streaming VAD, noise conditioning, language-specific ASR, a stable-prefix commit buffer, machine translation, and queued TTS. The first deployment focus is multilingual manufacturing in Vietnam, especially Vietnamese–Korean operations, while the model stack also covers Vietnamese, English, Mandarin, and Korean.
+SpeaKilo is an offline, low-latency Edge-AI speech translation system designed for frontline industrial communication. The proposed product combines a Raspberry Pi 5 (8 GB) pocket compute unit, wireless earbud capture/playback, and a companion HUD. At runtime, audio remains on the device and flows through streaming VAD, noise conditioning, language-specific ASR, a stable-prefix commit buffer, machine translation, and queued TTS. The first deployment focus is multilingual manufacturing in Vietnam, especially Vietnamese–Korean operations, while the model stack also covers Vietnamese, English, Mandarin, and Korean.
 
-The technical differentiator is system-level rather than a claim of a new foundation model: SpeaKilo combines specialist models per language pair, ONNX Runtime with the QNN Execution Provider for Raspberry Pi 5 acceleration, industrial terminology biasing, confidence gating, and a stabilization policy that prevents uncommitted ASR text from propagating into translation or speech output. Phase 2 success is defined by measurable engineering gates: <2 s text turnaround, robust ASR under industrial noise, stable streaming with quantified revision/commit latency, full-shift battery operation, and zero runtime cloud dependency.
+The technical differentiator is system-level rather than a claim of a new foundation model: SpeaKilo combines specialist models per language pair, INT8 ONNX Runtime inference on the Raspberry Pi 5 CPU, industrial terminology biasing, confidence gating, and a stabilization policy that prevents uncommitted ASR text from propagating into translation or speech output. Phase 2 success is defined by measurable engineering gates: <2 s text turnaround, robust ASR under industrial noise, stable streaming with quantified revision/commit latency, full-shift battery operation, and zero runtime cloud dependency.
 
 This proposal deliberately distinguishes published baselines, engineering estimates, acceptance targets, and team-measured results. Where Raspberry Pi 5 measurements are not yet available, they are presented as validation gates rather than completed results. That separation is central to the execution plan: the next milestones convert the current architecture into reproducible on-device evidence.
 
@@ -44,7 +44,7 @@ Frontline manufacturing communication is time-sensitive, hands-busy, noisy, and 
 
 **Real-Time Translation Architecture — Private, low-latency AI processing on device**
 
-The Pocket AI Unit (Qualcomm Raspberry Pi 5) processes audio through the following pipeline:
+The Pocket AI Unit (Raspberry Pi 5, 8 GB) processes audio through the following pipeline:
 
 1. **Capture** — 16 kHz mono audio capture
 2. **Streaming VAD** — Silero-VAD speech endpoints
@@ -54,7 +54,7 @@ The Pocket AI Unit (Qualcomm Raspberry Pi 5) processes audio through the followi
 6. **Incremental NMT** — envit5 & NLLB · by language
 
 Output delivered via:
-- **TTS Queue** — Kokoro / Piper
+- **TTS Queue** — Supertonic 3 (EN/KO/VI) · Kokoro or MeloTTS (ZH)
 - **Live UI** — EN → VI text
 - **Companion HUD** — Wrist display
 
@@ -68,7 +68,7 @@ Audio input via **Earbud + Mic** (Bluetooth HFP).
 - **Predictable interaction:** the <2 s text-turnaround requirement is treated as an acceptance target and profiled per language pair.
 - **Stable streaming:** only committed prefixes are translated; unstable partial text stays in the UI and never reaches MT/TTS.
 - **Industrial robustness:** evaluation explicitly includes machine noise, babble, reverberation, code-switching, and safety terminology.
-- **Edge deployment discipline:** Raspberry Pi 5, ONNX Runtime, QNN EP, quantization, memory budgeting, and power/thermal tests are part of the same system plan.
+- **Edge deployment discipline:** Raspberry Pi 5 (CPU only), ONNX Runtime, quantization, memory budgeting, and power/thermal tests are part of the same system plan.
 
 ---
 
@@ -180,10 +180,10 @@ SpeaKilo uses a streaming pipeline with a critical text path and an off-critical
 | ASR — EN/KO/CN | Compact streaming ASR, same architecture family | ~30–65 MB each INT8 | EN/KO/CN -> text | Phase 2 build candidate |
 | MT — VI <-> EN | envit5-translation | ~275 MB INT8 | VI <-> EN | Selected |
 | MT — VI <-> CN / KO | NLLB-200-distilled-600M | ~300 MB 4-bit | VI <-> CN; VI <-> KO | CN fine-tune planned; KO interim pivot |
-| TTS — EN/KO/CN | Kokoro-82M | ~100 MB INT8 | EN/KO/CN output | Selected candidate |
-| TTS — VI | Piper (VITS) | ~30–60 MB | VI output | Selected candidate |
+| TTS — EN/KO/VI | Supertonic 3 | ~99M params, INT8 ONNX | EN/KO/VI output | Selected candidate; Pi 5 benchmark pending |
+| TTS — CN | Kokoro-82M or MeloTTS | 82M params / ~163 MB | CN output | Second-priority candidates; benchmark pending |
 
-**Estimated resident model set:** approximately 1 GB against 6 GB LPDDR4x on the RB3 Gen 2/Raspberry Pi 5. This is an engineering estimate; peak working memory and allocator behavior must be profiled on-device.
+**Estimated resident model set:** approximately 1 GB against 8 GB LPDDR4X on the Raspberry Pi 5. This is an engineering estimate; peak working memory and allocator behavior must be profiled on-device.
 
 #### 4.2.1 Why this combination, not a single multilingual model
 
@@ -193,9 +193,9 @@ SpeaKilo uses a streaming pipeline with a critical text path and an off-critical
 
 **VI<->KO gap.** Dedicated Vietnamese–Korean parallel training data is not yet available in the current data inventory. The MVP therefore uses VI->EN via envit5 and EN->KO via NLLB (and the reverse path accordingly). This is explicitly an interim fallback with added latency and quality risk; direct VI<->KO data/model acquisition is a Phase 2 priority.
 
-**TTS.** Kokoro is used for EN/KO/CN output candidates while Piper covers Vietnamese output, where a small footprint and fast time-to-first-audio are prioritized.
+**TTS.** Supertonic 3 is the primary engine because one compact model covers EN, KO and VI. Kokoro-82M has no Korean or Vietnamese voices, so it is only a candidate for EN/CN output. CN is a second-priority language served by Kokoro or MeloTTS, chosen by benchmark. Piper is not used: its engine is GPL-3.0 and Supertonic already covers Vietnamese.
 
-**Licensing.** The Piper repository/voice licensing path must be reviewed before commercialization. Licensing risk is treated as an engineering release gate, not deferred to post-launch.
+**Licensing.** Supertonic 3 weights are OpenRAIL-M and must be reviewed for use restrictions before commercialization. Licensing risk is treated as an engineering release gate, not deferred to post-launch.
 
 ---
 
@@ -223,14 +223,14 @@ The stabilization layer is a first-class system component because streaming ASR 
 
 | Model / Component | Optimisation Path | Rationale / Validation |
 |---|---|---|
-| Zipformer-30M | INT8 ONNX / sherpa-onnx; QNN/Hexagon path where supported | Compact streaming ASR; target-hardware operator coverage must be profiled |
+| Zipformer-30M | INT8 ONNX / sherpa-onnx on CPU | Compact streaming ASR; per-stage latency must be profiled on the Pi 5 CPU |
 | Companion EN/KO/CN ASR | INT8; same export/runtime family as VI ASR | Reduces duplicated deployment tooling |
 | envit5 | INT8 dynamic quantization; decoder cache reuse | Reduces autoregressive decoding cost |
 | NLLB-distilled-600M | 4-bit quantization; language/domain fine-tuning | Fits current memory budget; accuracy must be re-baselined after quantization |
-| Kokoro | INT8; cache style/voice embedding per session | Avoid repeated static computation |
-| Piper | Keep resident in RAM | Avoid reload latency on Vietnamese output path |
+| Supertonic 3 | INT8 ONNX via sherpa-onnx; low denoising step count; synthesise per committed clause | Lowers time-to-first-audio; step count swept against quality |
+| Kokoro / MeloTTS (CN) | Prebuilt sherpa-onnx packages; keep resident in RAM | Avoid reload latency on the CN output path |
 
-> **Runtime decision:** standardize on ONNX Runtime + QNN Execution Provider. TFLite and Raspberry Pi-specific wording from earlier drafts is removed to keep one Raspberry Pi 5 deployment path.
+> **Runtime decision:** standardize on ONNX Runtime with the CPU execution provider and INT8 models. The Raspberry Pi 5 has no NPU, so the QNN Execution Provider applies only if the platform changes to a Qualcomm board.
 
 ---
 
@@ -304,7 +304,7 @@ The stabilization layer is a first-class system component because streaming ASR 
 | Risk | Impact | Mitigation | Exit Gate |
 |---|---|---|---|
 | VI<->KO lacks dedicated parallel data | Quality + latency from pivoting | Acquire/train direct pair; benchmark direct vs pivot | Direct path beats or justifies pivot on quality/latency |
-| QNN unsupported operators / partial offload | Latency and power miss | Profile exported graph; operator substitution; CPU fallback | p95 latency and sustained power pass target |
+| CPU-only inference over budget on 4 shared cores | Latency and power miss | Profile per stage; INT8; thread pinning; smaller models; measure under concurrent load | p95 latency and sustained power pass target |
 | Battery estimate overlaps 8 h requirement | Shift-runtime failure | Measure duty cycle; power tune; hot-swap pack | ≥8 h representative workload or operational hot-swap plan |
 | Bluetooth mic/noise degradation | ASR WER increase | Mic selection + conditioning + noise augmentation | Noise WER gate met at 5–10 dB |
 | Safety term mistranslation | Operational risk | Domain lexicon + confidence gate + curated safety test | No regression on safety suite |
@@ -316,16 +316,16 @@ The stabilization layer is a first-class system component because streaming ASR 
 
 ### 5.1 Platform Selection & Justification
 
-| Criterion | Jetson Orin Nano Super 8GB | Qualcomm RB3 Gen 2 / Raspberry Pi 5 | Raspberry Pi 5 + Hailo AI HAT+ 2 |
+| Criterion | Jetson Orin Nano Super 8GB | Raspberry Pi 5 (8 GB) | Raspberry Pi 5 + Hailo AI HAT+ 2 |
 |---|---|---|---|
-| AI performance | 67 sparse / 33 dense INT8 TOPS | 12 dense TOPS | 40 TOPS at INT4 |
-| Power | 7–25 W | 6–9 W SoC; ~12–15 W dev board | ~17–20 W system estimate |
-| Memory / storage | 8 GB LPDDR5 | 6 GB LPDDR4x + 128 GB UFS | 8/16 GB host + accelerator memory |
-| AI toolchain | CUDA / TensorRT / ONNX Runtime | Qualcomm AI Hub / QNN / QAIRT / ONNX Runtime | HailoRT / Model Zoo |
-| Transformer deployment | Excellent ecosystem | Good; requires QNN validation and profiling | Model conversion compatibility is a constraint |
-| Portable form factor | Small compute box | Best fit for compact battery-powered design | Higher system integration/power burden |
+| AI performance | 67 sparse / 33 dense INT8 TOPS | CPU only (4x Cortex-A76), no NPU | 40 TOPS at INT4 |
+| Power | 7–25 W | To be measured on target | ~17–20 W system estimate |
+| Memory / storage | 8 GB LPDDR5 | 8 GB LPDDR4X + microSD or NVMe | 8/16 GB host + accelerator memory |
+| AI toolchain | CUDA / TensorRT / ONNX Runtime | ONNX Runtime CPU EP / sherpa-onnx | HailoRT / Model Zoo |
+| Transformer deployment | Excellent ecosystem | INT8 on CPU; latency must be profiled | Model conversion compatibility is a constraint |
+| Portable form factor | Small compute box | Compact, battery-friendly | Higher system integration/power burden |
 
-**Platform decision:** Raspberry Pi 5 is selected because the proposal optimizes for portable power efficiency and a direct QNN/Qualcomm deployment path, not maximum raw TOPS.
+**Platform decision:** Raspberry Pi 5 (8 GB) is selected for its compact form factor, low cost and mature Linux and ONNX Runtime support, not for raw TOPS. The trade-off is that all inference shares four CPU cores, so per-stage latency and concurrent-load behaviour are first-class validation gates.
 
 ---
 
@@ -333,16 +333,16 @@ The stabilization layer is a first-class system component because streaming ASR 
 
 | Component | Prototype Specification | Power Status | Validation Note |
 |---|---|---|---|
-| SoC module | RB3 Gen 2 Core Kit, Raspberry Pi 5, 6 GB LPDDR4x | ~12–15 W dev-board peak estimate | Profile representative average and sustained peak |
+| SoC module | Raspberry Pi 5, 8 GB LPDDR4X | To be measured | Profile representative average and sustained peak |
 | Audio I/O | Bluetooth 5.2 HFP earbud/headset | Independent battery | Measure added Bluetooth latency and packet robustness |
-| Wireless | Integrated Wi-Fi 6E + Bluetooth 5.2 | Included in board budget | Runtime internet disabled for core translation |
+| Wireless | Integrated Wi-Fi + Bluetooth (confirm version and HFP support) | Included in board budget | Runtime internet disabled for core translation |
 | Cooling | Passive heatsink + small fan | ~1–2 W estimate | Thermal throttle test under sustained inference |
-| Storage | 128 GB UFS | Included | OS, models, terminology packages, logs |
+| Storage | microSD or NVMe SSD (capacity to be decided) | Measure if NVMe is used | OS, models, terminology packages, logs |
 | Power conversion | 12 V regulator, fuse, switch, LEDs | ~1 W loss/overhead | Measure conversion efficiency |
 | Main battery | ~99 Wh V-mount prototype battery | Separate energy store | Full-shift discharge test |
 | Companion HUD | ESP32-S3 + ~1.9–2.4 in IPS, own Li-Po | ~1.5–2 W peak, separate battery | BLE/Wi-Fi link and display runtime |
 
-> **Battery status:** the current engineering estimate is approximately 7–9 h. Because the product requirement is ≥8 h, autonomy is an **OPEN RISK**, not a completed claim. Phase 2 must run a representative-duty-cycle discharge test; hot-swap capability is the operational mitigation.
+> **Battery status:** the earlier 7–9 h estimate was derived for the RB3 Gen 2 dev board and must be re-derived for the Raspberry Pi 5. Because the product requirement is ≥8 h, autonomy is an **OPEN RISK**, not a completed claim. Phase 2 must run a representative-duty-cycle discharge test; hot-swap capability is the operational mitigation.
 
 ---
 
@@ -350,7 +350,7 @@ The stabilization layer is a first-class system component because streaming ASR 
 
 | Aspect | Phase 2 Prototype | Production Design Target |
 |---|---|---|
-| Compute enclosure | RB3 Gen 2 development hardware + active cooling | Compact belt/pocket enclosure with controlled airflow |
+| Compute enclosure | Raspberry Pi 5 development hardware + active cooling | Compact belt/pocket enclosure with controlled airflow |
 | Battery | ~99 Wh V-mount prototype supply | Hot-swappable pack sized for full-shift continuity |
 | User input | Earbud/session mode | Single-button, glove-friendly interaction |
 | Environmental protection | Not yet certified | IP54 target; validate sealing after enclosure freeze |
@@ -366,7 +366,7 @@ The stabilization layer is a first-class system component because streaming ASR 
 
 | BOM Block | Selected / Candidate Component | Readiness | Procurement / Cost Action |
 |---|---|---|---|
-| Compute | Qualcomm RB3 Gen 2 / Raspberry Pi 5 | Selected | Supplier availability and volume path to be confirmed |
+| Compute | Raspberry Pi 5 (8 GB) | Selected | Supplier availability and volume path to be confirmed |
 | Audio | Bluetooth earbud/headset with microphone | Candidate class selected | Finalize microphone/SNR and battery requirements |
 | Display | ESP32-S3 + compact IPS TFT | Candidate architecture | Finalize panel size, brightness, enclosure integration |
 | Power | 99 Wh prototype battery + 12 V regulation | Prototype path defined | Cost custom/hot-swap production pack after power profile |
@@ -393,8 +393,8 @@ A costed BOM is a required commercialization artifact. This Phase 2 document pro
 
 | Layer | Component / Framework | Role |
 |---|---|---|
-| OS | Qualcomm Linux / Ubuntu minimal build | Stable device runtime |
-| AI runtime | ONNX Runtime + QNN Execution Provider | Unified local inference and Hexagon acceleration where supported |
+| OS | Raspberry Pi OS / Ubuntu minimal build | Stable device runtime |
+| AI runtime | ONNX Runtime (CPU EP) + sherpa-onnx | Unified local INT8 inference on the Pi 5 CPU |
 | Audio processing | PulseAudio + VAD/noise-conditioning modules | Capture, buffering, suppression, endpointing |
 | Orchestration | C++ | Pipeline scheduling, concurrency, queues, state handling |
 | Connectivity | Bluetooth 5.2 HFP / BLE; Wi-Fi for maintenance only | Earbud audio + companion HUD; core translation does not require internet |
@@ -405,28 +405,28 @@ A costed BOM is a required commercialization artifact. This Phase 2 document pro
 ### 6.2 Architecture Diagram
 
 **System Integration & Execution Mapping**  
-*Target architecture on Qualcomm Raspberry Pi 5 — execution placement is validated per exported model/operator.*
+*Target architecture on Raspberry Pi 5 (CPU only) — per-stage latency is profiled, not assumed.*
 
 ```
 [EARBUD + MIC]                    [POCKET AI UNIT — Raspberry Pi 5]              [COMPANION HUD]
-16 kHz capture          →  Audio I/O + VAD + conditioning (CPU/DSP)  →   Source + translation
-Push-to-talk / session     Streaming ASR (ONNX Runtime + QNN EP)          BLE / Wi-Fi
+16 kHz capture          →  Audio I/O + VAD + conditioning (CPU)      →   Source + translation
+Push-to-talk / session     Streaming ASR (ONNX Runtime, CPU)              BLE / Wi-Fi
 Playback from TTS          Stable-prefix buffer + routing (C++)
-[Bluetooth HFP]            NMT (ONNX Runtime + QNN EP)              →   [TTS OUTPUT]
-                           ~1 GB model set / 6 GB LPDDR4x                  Kokoro / Piper
+[Bluetooth HFP]            NMT (ONNX Runtime, CPU)                  →   [TTS OUTPUT]
+                           ~1 GB model set / 8 GB LPDDR4X                  Supertonic 3 / Kokoro
 
 Offline runtime boundary: no cloud API or internet dependency.
-Unsupported operators fall back to CPU; placement is profiled, not assumed.
+All inference runs on the CPU; per-stage latency is profiled, not assumed.
 ```
 
-> **Figure 2.** System integration view. QNN offload is validated per model/operator; unsupported operators may remain on CPU.
+> **Figure 2.** System integration view. All stages share the four Raspberry Pi 5 CPU cores; concurrent-load latency is validated per stage.
 
 ---
 
 ### 6.3 Offline-First Design Principles
 
 - **Localized inference:** 100% of the core speech-to-speech path is designed to run without a cloud API.
-- **Single deployment runtime:** ONNX Runtime + QNN EP is the reference path for Raspberry Pi 5; earlier Raspberry Pi/TFLite wording is removed.
+- **Single deployment runtime:** ONNX Runtime (CPU EP, INT8) is the reference path for Raspberry Pi 5; TFLite is not used.
 - **Deterministic queues:** bounded buffers prevent runaway TTS/backlog behavior.
 - **Privacy by architecture:** operational audio/text is not required to leave the device during runtime.
 - **Fail visible, not silently:** low confidence, disconnected peripherals, and resource pressure surface explicit states to the user.
@@ -480,7 +480,7 @@ Unsupported operators fall back to CPU; placement is profiled, not assumed.
 | Window | Milestone | Exit Criteria |
 |---|---|---|
 | Aug 2026 | Baseline freeze + evaluation harness | Reproducible held-out WER/MT/stability tests; target/estimate/measured labels applied consistently |
-| Sep 2026 | Raspberry Pi 5 deployment + prototype integration | VI<->EN full path runs offline on target board; QNN/CPU placement profiled; p50/p95 latency reported |
+| Sep 2026 | Raspberry Pi 5 deployment + prototype integration | VI<->EN full path runs offline on target board; per-stage CPU latency profiled; p50/p95 latency reported |
 | Sep–Oct 2026 | Four-language integration | EN/KO/CN ASR path integrated; VI<->CN baseline; VI<->KO pivot measured and direct-path plan frozen |
 | Oct 2026 | Noise / thermal / battery field readiness | 5–10 dB noise results; sustained thermal test; representative battery discharge; failure-state handling |
 | Oct–Nov 2026 | Field test + tuning | Operator/supervisor feedback; N/L stability calibration; terminology package validation |
