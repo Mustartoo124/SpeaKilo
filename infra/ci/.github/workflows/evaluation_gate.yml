@@ -1,0 +1,9 @@
+# Run regression_gate/run_gate.py
+name: evaluation_gate
+on: [pull_request]
+jobs:
+  evaluation_gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO: implement

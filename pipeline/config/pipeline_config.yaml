@@ -1,0 +1,5 @@
+# Model paths, language pairs, N/L params, device settings.
+stabilizer:
+  n: 3  # STATUS: ESTIMATE
+  l: 2  # STATUS: ESTIMATE
+# TODO: model paths, device settings

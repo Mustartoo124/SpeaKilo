@@ -1,0 +1,13 @@
+*.onnx
+*.pt
+*.bin
+datasets/
+evaluation/**/results/*
+!evaluation/**/results/.gitkeep
+data/manifests/*
+!data/manifests/.gitkeep
+build/
+__pycache__/
+*.egg-info/
+.env
+.env.*

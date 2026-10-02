@@ -1,0 +1,6 @@
+# Pass/fail thresholds mirroring proposal section 4.6.
+vi_asr_wer_clean_max: 0.15  # STATUS: TARGET
+vi_asr_wer_snr_5_10db_max: 0.20  # STATUS: TARGET
+english_korean_chinese_asr_wer_max: 0.20  # STATUS: TARGET
+e2e_text_turnaround_s_max: 2.0  # STATUS: TARGET
+# TODO: remaining gates

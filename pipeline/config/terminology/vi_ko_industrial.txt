@@ -1,0 +1,2 @@
+# Domain lexicon for VI<->KO.
+# TODO
