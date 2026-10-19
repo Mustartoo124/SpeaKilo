@@ -13,6 +13,7 @@ from pathlib import Path
 
 import psutil
 
+from benchmark_schema import LANGS, load_testset
 from candidates import CANDIDATES, MODELS_ROOT, ensure_model
 from device_emulator import DeviceProfile, EmulatedDevice
 from tts_worker import worker_main
@@ -137,7 +138,9 @@ def parse_synthesize(body: dict) -> dict:
 
 
 def state() -> dict:
-    sentences = json.loads((HERE / "test_sentences.json").read_text(encoding="utf-8"))
+    sentences = {lang: [] for lang in LANGS}
+    for utt in load_testset():
+        sentences[utt.lang].append(utt.text)
     return {
         "candidates": [
             {
